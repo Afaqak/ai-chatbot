@@ -58,12 +58,13 @@ export async function POST(request: Request) {
   const session = await auth();
 
   if (!session || !session.user || !session.user.id) {
+
     return new Response('Unauthorized', { status: 401 });
   }
 
   const model = models.find((model) => model.id === modelId);
 
-  if (!model) {
+  if (!model)  {
     return new Response('Model not found', { status: 404 });
   }
 
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
   }
 
   const chat = await getChatById({ id });
+
 
   if (!chat) {
     const title = await generateTitleFromUserMessage({ message: userMessage });
@@ -95,7 +97,8 @@ export async function POST(request: Request) {
     messages: coreMessages,
     maxSteps: 5,
     experimental_activeTools: allTools,
-    tools: {
+    tools: { 
+    
       getWeather: {
         description: 'Get the current weather at a location',
         parameters: z.object({
@@ -119,7 +122,6 @@ export async function POST(request: Request) {
         execute: async ({ title }) => {
           const id = generateUUID();
           let draftText = '';
-
           streamingData.append({
             type: 'id',
             content: id,
@@ -155,8 +157,9 @@ export async function POST(request: Request) {
               });
             }
           }
-
+          console.log(draftText,'DRAFT TEXT')
           streamingData.append({ type: 'finish', content: '' });
+
 
           if (session.user?.id) {
             await saveDocument({

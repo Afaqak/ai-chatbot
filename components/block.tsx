@@ -249,6 +249,8 @@ export function Block({
 
   const [_, copyToClipboard] = useCopyToClipboard();
 
+  console.log(documents,'DOCS')
+
   return (
     <motion.div
       className="flex flex-row h-dvh w-dvw fixed top-0 left-0 z-50 bg-muted"

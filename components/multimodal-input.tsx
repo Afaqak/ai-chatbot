@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
 import type {
   Attachment,
   ChatRequestOptions,
   CreateMessage,
   Message,
-} from 'ai';
-import cx from 'classnames';
-import { motion } from 'framer-motion';
-import type React from 'react';
+} from "ai";
+import cx from "classnames";
+import { motion } from "framer-motion";
+import type React from "react";
 import {
   useRef,
   useEffect,
@@ -17,27 +17,29 @@ import {
   type Dispatch,
   type SetStateAction,
   type ChangeEvent,
-} from 'react';
-import { toast } from 'sonner';
-import { useLocalStorage, useWindowSize } from 'usehooks-ts';
+} from "react";
+import { toast } from "sonner";
+import { useLocalStorage, useWindowSize } from "usehooks-ts";
 
-import { sanitizeUIMessages } from '@/lib/utils';
+import { sanitizeUIMessages } from "@/lib/utils";
 
-import { ArrowUpIcon, PaperclipIcon, StopIcon } from './icons';
-import { PreviewAttachment } from './preview-attachment';
-import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
+import { ArrowUpIcon, PaperclipIcon, StopIcon } from "./icons";
+import { PreviewAttachment } from "./preview-attachment";
+import { Button } from "./ui/button";
+import { Textarea } from "./ui/textarea";
+import { Card, CardContent } from "./ui/card";
+import { FileText, Gavel, Scale, Shield } from "lucide-react";
 
 const suggestedActions = [
   {
-    title: 'What is the weather',
-    label: 'in San Francisco?',
-    action: 'What is the weather in San Francisco?',
+    title: "What is the weather",
+    label: "in San Francisco?",
+    action: "What is the weather in San Francisco?",
   },
   {
-    title: 'Help me draft an essay',
-    label: 'about Silicon Valley',
-    action: 'Help me draft a short essay about Silicon Valley',
+    title: "Help me draft an essay",
+    label: "about Silicon Valley",
+    action: "Help me draft a short essay about Silicon Valley",
   },
 ];
 
@@ -66,13 +68,13 @@ export function MultimodalInput({
   setMessages: Dispatch<SetStateAction<Array<Message>>>;
   append: (
     message: Message | CreateMessage,
-    chatRequestOptions?: ChatRequestOptions,
+    chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>;
   handleSubmit: (
     event?: {
       preventDefault?: () => void;
     },
-    chatRequestOptions?: ChatRequestOptions,
+    chatRequestOptions?: ChatRequestOptions
   ) => void;
   className?: string;
 }) {
@@ -87,21 +89,23 @@ export function MultimodalInput({
 
   const adjustHeight = () => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight + 2}px`;
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${
+        textareaRef.current.scrollHeight + 2
+      }px`;
     }
   };
 
   const [localStorageInput, setLocalStorageInput] = useLocalStorage(
-    'input',
-    '',
+    "input",
+    ""
   );
 
   useEffect(() => {
     if (textareaRef.current) {
       const domValue = textareaRef.current.value;
       // Prefer DOM value over localStorage to handle hydration
-      const finalValue = domValue || localStorageInput || '';
+      const finalValue = domValue || localStorageInput || "";
       setInput(finalValue);
       adjustHeight();
     }
@@ -122,14 +126,14 @@ export function MultimodalInput({
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
 
   const submitForm = useCallback(() => {
-    window.history.replaceState({}, '', `/chat/${chatId}`);
+    window.history.replaceState({}, "", `/chat/${chatId}`);
 
     handleSubmit(undefined, {
       experimental_attachments: attachments,
     });
 
     setAttachments([]);
-    setLocalStorageInput('');
+    setLocalStorageInput("");
 
     if (width && width > 768) {
       textareaRef.current?.focus();
@@ -145,11 +149,11 @@ export function MultimodalInput({
 
   const uploadFile = async (file: File) => {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
 
     try {
-      const response = await fetch('/api/files/upload', {
-        method: 'POST',
+      const response = await fetch("/api/files/upload", {
+        method: "POST",
         body: formData,
       });
 
@@ -166,7 +170,7 @@ export function MultimodalInput({
       const { error } = await response.json();
       toast.error(error);
     } catch (error) {
-      toast.error('Failed to upload file, please try again!');
+      toast.error("Failed to upload file, please try again!");
     }
   };
 
@@ -180,7 +184,7 @@ export function MultimodalInput({
         const uploadPromises = files.map((file) => uploadFile(file));
         const uploadedAttachments = await Promise.all(uploadPromises);
         const successfullyUploadedAttachments = uploadedAttachments.filter(
-          (attachment) => attachment !== undefined,
+          (attachment) => attachment !== undefined
         );
 
         setAttachments((currentAttachments) => [
@@ -188,49 +192,129 @@ export function MultimodalInput({
           ...successfullyUploadedAttachments,
         ]);
       } catch (error) {
-        console.error('Error uploading files!', error);
+        console.error("Error uploading files!", error);
       } finally {
         setUploadQueue([]);
       }
     },
-    [setAttachments],
+    [setAttachments]
   );
+
+  const suggestions = [
+    {
+      icon: <FileText className="h-8 w-8 text-blue-500" />,
+      title: "Contract Drafting Assistant",
+      description:
+        "Helps draft and review legal contracts with AI-powered suggestions",
+    },
+    {
+      icon: <Scale className="h-8 w-8 text-green-500" />,
+      title: "Compliance Checker",
+      description: "Verify legal compliance across different jurisdictions",
+    },
+    {
+      icon: <Shield className="h-8 w-8 text-purple-500" />,
+      title: "Legal Risk Analyzer",
+      description: "Assess potential legal risks in documents and agreements",
+    },
+    {
+      icon: <Gavel className="h-8 w-8 text-orange-500" />,
+      title: "Case Law Research",
+      description: "Find relevant legal precedents and case studies",
+    },
+  ];
+
+  const faqs = [
+    "How do I draft an NDA?",
+    "What clauses should be in my contract?",
+    "Review my terms of service",
+    "Check contract compliance",
+    "Analyze legal risks",
+  ];
 
   return (
     <div className="relative w-full flex flex-col gap-4">
       {messages.length === 0 &&
         attachments.length === 0 &&
         uploadQueue.length === 0 && (
-          <div className="grid sm:grid-cols-2 gap-2 w-full">
-            {suggestedActions.map((suggestedAction, index) => (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                transition={{ delay: 0.05 * index }}
-                key={`suggested-action-${suggestedAction.title}-${index}`}
-                className={index > 1 ? 'hidden sm:block' : 'block'}
-              >
-                <Button
-                  variant="ghost"
-                  onClick={async () => {
-                    window.history.replaceState({}, '', `/chat/${chatId}`);
+          // <div className="grid sm:grid-cols-2 gap-2 w-full">
+          //   {suggestedActions.map((suggestedAction, index) => (
+          //     <motion.div
+          //       initial={{ opacity: 0, y: 20 }}
+          //       animate={{ opacity: 1, y: 0 }}
+          //       exit={{ opacity: 0, y: 20 }}
+          //       transition={{ delay: 0.05 * index }}
+          //       key={`suggested-action-${suggestedAction.title}-${index}`}
+          //       className={index > 1 ? 'hidden sm:block' : 'block'}
+          //     >
+          //       <Button
+          //         variant="ghost"
+          //         onClick={async () => {
+          //           window.history.replaceState({}, '', `/chat/${chatId}`);
 
-                    append({
-                      role: 'user',
-                      content: suggestedAction.action,
-                    });
-                  }}
-                  className="text-left border rounded-xl px-4 py-3.5 text-sm flex-1 gap-1 sm:flex-col w-full h-auto justify-start items-start"
+          //           append({
+          //             role: 'user',
+          //             content: suggestedAction.action,
+          //           });
+          //         }}
+          //         className="text-left border rounded-xl px-4 py-3.5 text-sm flex-1 gap-1 sm:flex-col w-full h-auto justify-start items-start"
+          //       >
+          //         <span className="font-medium">{suggestedAction.title}</span>
+          //         <span className="text-muted-foreground">
+          //           {suggestedAction.label}
+          //         </span>
+          //       </Button>
+          //     </motion.div>
+          //   ))}
+          // </div>
+
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-4xl mb-8">
+              {suggestions.map((suggestion, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  // transition={{ duration: 0.5, delay: index * 0.1 }}
                 >
-                  <span className="font-medium">{suggestedAction.title}</span>
-                  <span className="text-muted-foreground">
-                    {suggestedAction.label}
-                  </span>
-                </Button>
-              </motion.div>
-            ))}
-          </div>
+                  <Card className="cursor-pointer hover:bg-gray-50 transition-colors">
+                    <CardContent className="flex items-start space-x-4 p-6">
+                      {suggestion.icon}
+                      <div>
+                        <h3 className="font-semibold text-lg mb-1">
+                          {suggestion.title}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {suggestion.description}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center mb-8 w-full max-w-4xl">
+              {faqs.map((faq, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                >
+                  <Button
+                    variant="outline"
+                    className="rounded-full text-sm bg-white hover:bg-gray-100 transition-colors"
+                    // onClick={() => {
+                    //   setQuestion(faq);
+                    //   handleAskQuestion(faq);
+                    // }}
+                  >
+                    {faq}
+                  </Button>
+                </motion.div>
+              ))}
+            </div>
+          </>
         )}
 
       <input
@@ -252,9 +336,9 @@ export function MultimodalInput({
             <PreviewAttachment
               key={filename}
               attachment={{
-                url: '',
+                url: "",
                 name: filename,
-                contentType: '',
+                contentType: "",
               }}
               isUploading={true}
             />
@@ -268,17 +352,17 @@ export function MultimodalInput({
         value={input}
         onChange={handleInput}
         className={cx(
-          'min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-xl text-base bg-muted',
-          className,
+          "min-h-[16px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-xl text-base bg-muted",
+          className
         )}
         rows={3}
         autoFocus
         onKeyDown={(event) => {
-          if (event.key === 'Enter' && !event.shiftKey) {
+          if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
 
             if (isLoading) {
-              toast.error('Please wait for the model to finish its response!');
+              toast.error("Please wait for the model to finish its response!");
             } else {
               submitForm();
             }

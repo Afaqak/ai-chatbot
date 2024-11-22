@@ -12,19 +12,19 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   const { id } = params;
   const chat = await getChatById({ id });
 
-  // if (!chat) {
-  //   notFound();
-  // }
+  if (!chat) {
+    notFound();
+  }
 
-  // const session = await auth();
+  const session = await auth();
 
-  // if (!session || !session.user) {
-  //   return notFound();
-  // }
+  if (!session || !session.user) {
+    return notFound();
+  }
 
-  // if (session.user.id !== chat.userId) {
-  //   return notFound();
-  // }
+  if (session.user.id !== chat.userId) {
+    return notFound();
+  }
 
   const messagesFromDb = await getMessagesByChatId({
     id,
