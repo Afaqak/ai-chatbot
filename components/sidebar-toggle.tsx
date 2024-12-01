@@ -1,21 +1,25 @@
-import type { ComponentProps } from 'react';
+import type { ComponentProps } from "react";
 
-import { type SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
-import { BetterTooltip } from '@/components/ui/tooltip';
+import { type SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { BetterTooltip } from "@/components/ui/tooltip";
 
-import { SidebarLeftIcon } from './icons';
-import { Button } from './ui/button';
+import { SidebarLeftIcon } from "./icons";
+import { Button } from "./ui/button";
+import { useSidebarStore } from "@/features/main/hooks";
 
 export function SidebarToggle({
   className,
-}: ComponentProps<typeof SidebarTrigger>) {
-  const { toggleSidebar } = useSidebar();
+  align = "end",
+}: ComponentProps<typeof SidebarTrigger> & {
+  align: "center" | "end" | "start" | undefined;
+}) {
+  const { toggle_chat_sidebar } = useSidebarStore();
 
   return (
-    <BetterTooltip content="Toggle Sidebar" align="start">
+    <BetterTooltip content="Toggle Sidebar" align={align}>
       <Button
-        onClick={toggleSidebar}
-        variant="outline"
+        onClick={toggle_chat_sidebar}
+        // variant="outline"
         className="md:px-2 md:h-fit"
       >
         <SidebarLeftIcon size={16} />

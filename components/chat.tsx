@@ -7,7 +7,7 @@ import { useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useWindowSize } from "usehooks-ts";
 
-import { ChatHeader } from "@/components/chat-header";
+import { ChatHeader } from "@/app/(dashboard)/(chat)/chat/_components/chat-header";
 import { PreviewMessage, ThinkingMessage } from "@/components/message";
 import { useScrollToBottom } from "@/components/use-scroll-to-bottom";
 import type { Vote } from "@/lib/db/schema";
@@ -118,7 +118,7 @@ export function Chat({
     useScrollToBottom<HTMLDivElement>();
 
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
-  console.log(messages);
+
   return (
     <>
       <div className="flex flex-col min-w-0 h-dvh bg-background">

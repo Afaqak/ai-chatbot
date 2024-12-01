@@ -1,28 +1,28 @@
-import type { SetStateAction } from 'react';
+import type { SetStateAction } from "react";
 
-import type { UIBlock } from './block';
-import { FileIcon, LoaderIcon, MessageIcon, PencilEditIcon } from './icons';
+import type { UIBlock } from "./block";
+import { FileIcon, LoaderIcon, MessageIcon, PencilEditIcon } from "./icons";
 
 const getActionText = (
-  type: 'create' | 'update' | 'request-suggestions',
-  tense: 'present' | 'past',
+  type: "create" | "update" | "request-suggestions",
+  tense: "present" | "past"
 ) => {
   switch (type) {
-    case 'create':
-      return tense === 'present' ? 'Creating' : 'Created';
-    case 'update':
-      return tense === 'present' ? 'Updating' : 'Updated';
-    case 'request-suggestions':
-      return tense === 'present'
-        ? 'Adding suggestions'
-        : 'Added suggestions to';
+    case "create":
+      return tense === "present" ? "Creating" : "Created";
+    case "update":
+      return tense === "present" ? "Updating" : "Updated";
+    case "request-suggestions":
+      return tense === "present"
+        ? "Adding suggestions"
+        : "Added suggestions to";
     default:
       return null;
   }
 };
 
 interface DocumentToolResultProps {
-  type: 'create' | 'update' | 'request-suggestions';
+  type: "create" | "update" | "request-suggestions";
   result: { id: string; title: string };
   block: UIBlock;
   setBlock: (value: SetStateAction<UIBlock>) => void;
@@ -49,32 +49,32 @@ export function DocumentToolResult({
 
         setBlock({
           documentId: result.id,
-          content: '',
+          content: "",
           title: result.title,
           isVisible: true,
-          status: 'idle',
+          status: "idle",
           boundingBox,
         });
       }}
     >
       <div className="text-muted-foreground mt-1">
-        {type === 'create' ? (
+        {type === "create" ? (
           <FileIcon />
-        ) : type === 'update' ? (
+        ) : type === "update" ? (
           <PencilEditIcon />
-        ) : type === 'request-suggestions' ? (
+        ) : type === "request-suggestions" ? (
           <MessageIcon />
         ) : null}
       </div>
       <div className="text-left">
-        {`${getActionText(type, 'past')} "${result.title}"`}
+        {`${getActionText(type, "past")} "${result.title}"`}
       </div>
     </button>
   );
 }
 
 interface DocumentToolCallProps {
-  type: 'create' | 'update' | 'request-suggestions';
+  type: "create" | "update" | "request-suggestions";
   args: { title: string };
   setBlock: (value: SetStateAction<UIBlock>) => void;
 }
@@ -107,17 +107,19 @@ export function DocumentToolCall({
     >
       <div className="flex flex-row gap-3 items-start">
         <div className="text-zinc-500 mt-1">
-          {type === 'create' ? (
+          {type === "create" ? (
             <FileIcon />
-          ) : type === 'update' ? (
+          ) : type === "update" ? (
             <PencilEditIcon />
-          ) : type === 'request-suggestions' ? (
+          ) : type === "request-suggestions" ? (
             <MessageIcon />
           ) : null}
         </div>
 
         <div className="text-left">
-          {`${getActionText(type, 'present')} ${args.title ? `"${args.title}"` : ''}`}
+          {`${getActionText(type, "present")} ${
+            args.title ? `"${args.title}"` : ""
+          }`}
         </div>
       </div>
 

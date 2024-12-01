@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { AnimatePresence, motion } from 'framer-motion';
-import { useState } from 'react';
-import { useWindowSize } from 'usehooks-ts';
+import { AnimatePresence, motion } from "framer-motion";
+import { useState } from "react";
+import { useWindowSize } from "usehooks-ts";
 
-import type { UISuggestion } from '@/lib/editor/suggestions';
+import type { UISuggestion } from "@/lib/editor/suggestions";
 
-import { CrossIcon, MessageIcon } from './icons';
-import { Button } from './ui/button';
+import { CrossIcon, MessageIcon } from "./icons";
+import { Button } from "./ui/button";
 
 export const Suggestion = ({
   suggestion,
@@ -18,12 +18,12 @@ export const Suggestion = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const { width: windowWidth } = useWindowSize();
-
+  console.log("suggestion");
   return (
     <AnimatePresence>
       {!isExpanded ? (
         <motion.div
-          className="absolute cursor-pointer text-muted-foreground -right-8 p-1"
+          className="absolute z-[9999999999] cursor-pointer text-muted-foreground -right-8 p-1"
           onClick={() => {
             setIsExpanded(true);
           }}
@@ -35,7 +35,7 @@ export const Suggestion = ({
         <motion.div
           key={suggestion.id}
           className="absolute bg-background p-3 flex flex-col gap-3 rounded-2xl border text-sm w-56 shadow-xl z-50 -right-12 md:-right-16"
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          transition={{ type: "spring", stiffness: 500, damping: 30 }}
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: -20 }}
           exit={{ opacity: 0, y: -10 }}

@@ -1,32 +1,33 @@
-'use client';
+"use client";
 
-import { exampleSetup } from 'prosemirror-example-setup';
-import { inputRules } from 'prosemirror-inputrules';
-import { EditorState } from 'prosemirror-state';
-import { EditorView } from 'prosemirror-view';
-import React, { memo, useEffect, useRef } from 'react';
+import { exampleSetup } from "prosemirror-example-setup";
+import { inputRules } from "@tiptap/pm/inputrules";
+import { EditorState } from "@tiptap/pm/state";
+import { EditorView } from "@tiptap/pm/view";
+import React, { memo, useEffect, useRef } from "react";
 
-import type { Suggestion } from '@/lib/db/schema';
+import type { Suggestion } from "@/lib/db/schema";
 import {
   documentSchema,
   handleTransaction,
   headingRule,
-} from '@/lib/editor/config';
+} from "@/lib/editor/config";
 import {
   buildContentFromDocument,
   buildDocumentFromContent,
   createDecorations,
-} from '@/lib/editor/functions';
+} from "@/lib/editor/functions";
 import {
   projectWithPositions,
   suggestionsPlugin,
   suggestionsPluginKey,
-} from '@/lib/editor/suggestions';
+} from "@/lib/editor/suggestions";
+import { TextMenu } from "@/features/editor/menus";
 
 type EditorProps = {
   content: string;
   saveContent: (updatedContent: string, debounce: boolean) => void;
-  status: 'streaming' | 'idle';
+  status: "streaming" | "idle";
   isCurrentVersion: boolean;
   currentVersionIndex: number;
   suggestions: Array<Suggestion>;
@@ -41,6 +42,7 @@ function PureEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<EditorView | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
     if (containerRef.current && !editorRef.current) {
       const state = EditorState.create({
@@ -80,59 +82,59 @@ function PureEditor({
     if (editorRef.current) {
       editorRef.current.setProps({
         dispatchTransaction: (transaction) => {
-          handleTransaction({ transaction, editorRef, saveContent });
+          handleTransaction({ transaction, editorRef, saveContent, content });
         },
       });
     }
   }, [saveContent]);
 
-  useEffect(() => {
-    if (editorRef.current && content) {
-      const currentContent = buildContentFromDocument(
-        editorRef.current.state.doc,
-      );
+  // useEffect(() => {
+  //   if (editorRef.current && content) {
+  //     const currentContent = buildContentFromDocument(
+  //       editorRef.current.state.doc
+  //     );
 
-      if (status === 'streaming') {
-        const newDocument = buildDocumentFromContent(content);
+  //     if (status === "streaming") {
+  //       const newDocument = buildDocumentFromContent(content);
 
-        const transaction = editorRef.current.state.tr.replaceWith(
-          0,
-          editorRef.current.state.doc.content.size,
-          newDocument.content,
-        );
+  //       const transaction = editorRef.current.state.tr.replaceWith(
+  //         0,
+  //         editorRef.current.state.doc.content.size,
+  //         newDocument.content
+  //       );
 
-        transaction.setMeta('no-save', true);
-        editorRef.current.dispatch(transaction);
-        return;
-      }
+  //       transaction.setMeta("no-save", true);
+  //       editorRef.current.dispatch(transaction);
+  //       return;
+  //     }
 
-      if (currentContent !== content) {
-        const newDocument = buildDocumentFromContent(content);
+  //     if (currentContent !== content) {
+  //       const newDocument = buildDocumentFromContent(content);
 
-        const transaction = editorRef.current.state.tr.replaceWith(
-          0,
-          editorRef.current.state.doc.content.size,
-          newDocument.content,
-        );
+  //       const transaction = editorRef.current.state.tr.replaceWith(
+  //         0,
+  //         editorRef.current.state.doc.content.size,
+  //         newDocument.content
+  //       );
 
-        transaction.setMeta('no-save', true);
-        editorRef.current.dispatch(transaction);
-      }
-    }
-  }, [content, status]);
+  //       transaction.setMeta("no-save", true);
+  //       editorRef.current.dispatch(transaction);
+  //     }
+  //   }
+  // }, [content, status]);
 
   useEffect(() => {
     if (editorRef.current?.state.doc && content) {
       const projectedSuggestions = projectWithPositions(
         editorRef.current.state.doc,
-        suggestions,
+        suggestions
       ).filter(
-        (suggestion) => suggestion.selectionStart && suggestion.selectionEnd,
+        (suggestion) => suggestion.selectionStart && suggestion.selectionEnd
       );
 
       const decorations = createDecorations(
         projectedSuggestions,
-        editorRef.current,
+        editorRef.current
       );
 
       const transaction = editorRef.current.state.tr;
@@ -142,7 +144,9 @@ function PureEditor({
   }, [suggestions, content]);
 
   return (
-    <div className="relative prose dark:prose-invert" ref={containerRef} />
+    <>
+      <div className="relative prose dark:prose-invert" ref={containerRef} />
+    </>
   );
 }
 
@@ -151,7 +155,7 @@ function areEqual(prevProps: EditorProps, nextProps: EditorProps) {
     prevProps.suggestions === nextProps.suggestions &&
     prevProps.currentVersionIndex === nextProps.currentVersionIndex &&
     prevProps.isCurrentVersion === nextProps.isCurrentVersion &&
-    !(prevProps.status === 'streaming' && nextProps.status === 'streaming') &&
+    !(prevProps.status === "streaming" && nextProps.status === "streaming") &&
     prevProps.content === nextProps.content &&
     prevProps.saveContent === nextProps.saveContent
   );
