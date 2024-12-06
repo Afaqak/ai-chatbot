@@ -2,25 +2,25 @@
 import { MarkdownSerializer } from "prosemirror-markdown";
 import { Mark, Fragment, type Node } from "@tiptap/pm/model";
 
-function isPlainURL(link: Mark, parent: Fragment, index: number, side: any) {
-  if (link.attrs.title) {
-    return false;
-  }
+// function isPlainURL(link: Mark, parent: Fragment, index: number, side: any) {
+//   if (link.attrs.title) {
+//     return false;
+//   }
 
-  const content = parent.child(index + (side < 0 ? -1 : 0));
-  if (
-    !content.isText ||
-    content.text !== link.attrs.href ||
-    content.marks[content.marks.length - 1] !== link
-  ) {
-    return false;
-  }
-  if (index === (side < 0 ? 1 : parent.childCount - 1)) {
-    return true;
-  }
-  const next = parent.child(index + (side < 0 ? -2 : 1));
-  return !link.isInSet(next.marks);
-}
+//   const content = parent.child(index + (side < 0 ? -1 : 0));
+//   if (
+//     !content.isText ||
+//     content.text !== link.attrs.href ||
+//     content.marks[content.marks.length - 1] !== link
+//   ) {
+//     return false;
+//   }
+//   if (index === (side < 0 ? 1 : parent.childCount - 1)) {
+//     return true;
+//   }
+//   const next = parent.child(index + (side < 0 ? -2 : 1));
+//   return !link.isInSet(next.marks);
+// }
 
 function backticksFor(node: Node, side: Side) {
   const ticks = /`+/g;
@@ -48,7 +48,7 @@ export const toMarkdown = (content: Node) =>
   new MarkdownSerializer(
     {
       blockquote(state, node) {
-        state.wrapBlock("> ", undefined, node, () => state.renderContent(node));
+        state.wrapBlock("> ", null, node, () => state.renderContent(node));
       },
       codeBlock(state, node) {
         const language: string | undefined = node.attrs.language;
@@ -88,38 +88,7 @@ export const toMarkdown = (content: Node) =>
         state.renderInline(node);
         state.closeBlock(node);
       },
-      image(state, node) {
-        state.write(
-          `![${state.esc(node.attrs.alt || "")}](${state.esc(node.attrs.src)}${
-            node.attrs.title ? ` ${state.quote(node.attrs.title)}` : ""
-          })`
-        );
-      },
-      table(state, node) {
-        const rows = [];
-        node.forEach((rowNode) => {
-          const cells = [];
-          rowNode.forEach((cellNode) => {
-            let cellContent = "";
-            state.renderInline(cellNode, (text) => (cellContent += text));
-            cells.push(cellContent);
-          });
-          rows.push(cells);
-        });
 
-        rows.forEach((row, index) => {
-          state.write(`| ${row.join(" | ")} |\n`);
-          if (index === 0) {
-            state.write(`|${row.map(() => "---").join("|")}|\n`);
-          }
-        });
-      },
-      tableRow(state, node) {
-        node.forEach((cell) => state.renderInline(cell));
-      },
-      tableCell(state, node) {
-        state.renderInline(node);
-      },
       hardBreak(state, node, parent, index) {
         for (let i = index + 1; i < parent.childCount; i++) {
           if (parent.child(i).type !== node.type) {
@@ -127,39 +96,6 @@ export const toMarkdown = (content: Node) =>
             return;
           }
         }
-      },
-      imageUpload(state, node) {
-        // If your node has a src attribute
-        if (node.attrs.src) {
-          state.write(`![Image Upload](${node.attrs.src})`);
-        } else {
-          state.write(`[Image Upload]`);
-        }
-        state.closeBlock(node);
-      },
-      imageBlock(state, node) {
-        const { src, alt, width, align } = node.attrs;
-
-        // Basic Markdown image syntax
-        const altText = alt || "";
-
-        // Construct the Markdown image
-        const imageMarkdown = `![${state.esc(altText)}](${state.esc(src)})`;
-
-        // Add optional metadata as HTML comment if needed
-        const metadataComment =
-          width !== "100%" || align !== "center"
-            ? `<!-- width: ${width}, align: ${align} -->`
-            : "";
-
-        state.write(imageMarkdown);
-
-        // Optionally add metadata comment
-        if (metadataComment) {
-          state.write(" " + metadataComment);
-        }
-
-        state.closeBlock(node);
       },
       text(state, node) {
         if (!node.text) {
@@ -201,18 +137,18 @@ export const toMarkdown = (content: Node) =>
         expelEnclosingWhitespace: true,
       },
 
-      link: {
-        open(_state, mark, parent, index) {
-          return isPlainURL(mark, parent, index, 1) ? "<" : "[";
-        },
-        close(state, mark, parent, index) {
-          return isPlainURL(mark, parent, index, -1)
-            ? ">"
-            : `](${state.esc(mark.attrs.href)}${
-                mark.attrs.title ? ` ${state.quote(mark.attrs.title)}` : ""
-              })`;
-        },
-      },
+      // link: {
+      //   open(_state, mark, parent, index) {
+      //     return isPlainURL(mark, parent, index, 1) ? "<" : "[";
+      //   },
+      //   close(state, mark, parent, index) {
+      //     return isPlainURL(mark, parent, index, -1)
+      //       ? ">"
+      //       : `](${state.esc(mark.attrs.href)}${
+      //           mark.attrs.title ? ` ${state.quote(mark.attrs.title)}` : ""
+      //         })`;
+      //   },
+      // },
       code: {
         open(_state, _mark, parent, index) {
           return backticksFor(parent.child(index), -1);

@@ -60,17 +60,17 @@ export const DiffView = ({ oldContent, newContent }: DiffEditorProps) => {
   useEffect(() => {
     if (editorRef.current && !viewRef.current) {
       const parser = DOMParser.fromSchema(diffSchema);
-
+      
       const oldHtmlContent = renderToString(
         <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw]}
+        // rehypePlugins={[rehypeRaw]}
         >{oldContent}</ReactMarkdown>
       );
       const newHtmlContent = renderToString(
         <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw]}
+        // rehypePlugins={[rehypeRaw]}
         >{newContent}</ReactMarkdown>
       );
 

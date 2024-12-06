@@ -18,6 +18,7 @@ export default async function Layout({
   const isCollapsed = cookieStore.get("main-sidebar:state")?.value !== "true";
 
   return (
+    
     <SidebarProvider name="main-sidebar" defaultOpen={!isCollapsed}>
       <AppSidebar user={session?.user} />
       {children}

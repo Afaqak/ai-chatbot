@@ -20,6 +20,7 @@ declare global {
 
 
 export const useBlockEditor = () => {
+  
   const editor = useEditor(
     {
       immediatelyRender: true,
@@ -29,13 +30,15 @@ export const useBlockEditor = () => {
         if (editor.isEmpty) {
           editor.commands.focus("start");
         }
+        
+      },
+
+      onSelectionUpdate(props) {
+        console.log('selection')
       },
 
       extensions: [
         ...ExtensionKit(),
-        Markdown.configure({
-          html: false,
-        }),
       ].filter((e): e is AnyExtension => e !== undefined),
       editorProps: {
         attributes: {

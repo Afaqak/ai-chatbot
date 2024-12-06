@@ -15,6 +15,7 @@ import { ContentTypePicker } from "./components/ContentTypePicker";
 import { AIDropdown } from "./components/AIDropdown";
 import { EditLinkPopover } from "./components/EditLinkPopover";
 import { DataFieldPicker } from "../datafieldMenu";
+import useEditorStore from "@/hooks/use-editor-store";
 
 // We memorize the button so each button is not rerendered
 // on every editor state change
@@ -32,6 +33,7 @@ export const TextMenu = ({ editor }: TextMenuProps) => {
   const commands = useTextmenuCommands(editor);
   const states = useTextmenuStates(editor);
   const blockOptions = useTextmenuContentTypes(editor);
+  // const {editor:storeEditor}=useEditorStore()
 
   return (
     <BubbleMenu

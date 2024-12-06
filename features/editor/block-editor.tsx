@@ -52,12 +52,23 @@ const BlockEditor = ({
 
   const { editor } = useBlockEditor();
   const initialContentSet = useRef(false);
+  
+  let checkIsStringified = (content: string) => {
+    try {
+      return JSON.parse(content);
+    } catch (error) {
+      return content;
+    }
+  };
 
   function setEditorContent() {
-    const parser = buildDocumentFromContent(content, editor.schema);
-    console.log(parser.content);
-
-    editor.commands.setContent(parser.toJSON());
+    let docContent = checkIsStringified(content);
+    if (typeof docContent === "string") {
+      const document = buildDocumentFromContent(content, editor.schema);
+      editor.commands.setContent(document.toJSON());
+    } else {
+      editor.commands.setContent(JSON.parse(content));
+    }
   }
 
   useEffect(() => {
@@ -77,13 +88,8 @@ const BlockEditor = ({
         dispatchTransaction: (transaction) => {
           const newState = editor.view.state.apply(transaction);
           editor.view.updateState(newState);
-          console.log(editor.storage.markdown.getMarkdown());
-
           if (isCurrentVersion) {
-            const updatedContent = buildContentFromDocument(
-              editor.view.state.doc
-            );
-  
+            const updatedContent = JSON.stringify(editor.getJSON());
             handleTransaction({
               transaction,
               editorRef: { current: editor.view },
@@ -107,7 +113,7 @@ const BlockEditor = ({
       ).filter(
         (suggestion) => suggestion.selectionStart && suggestion.selectionEnd
       );
-      console.log(projectedSuggestions,'PROJ')
+      console.log(projectedSuggestions, "PROJ");
 
       const decorations = createDecorations(projectedSuggestions, editor.view);
 
@@ -146,14 +152,6 @@ function areEqual(prevProps: EditorProps, nextProps: EditorProps) {
   }
 
   if (nextProps.mode === "conversation") {
-    // Compare props relevant for "conversation" mode
-    console.log(
-      prevProps.suggestions === nextProps.suggestions &&
-        prevProps.currentVersionIndex === nextProps.currentVersionIndex &&
-        prevProps.isCurrentVersion === nextProps.isCurrentVersion &&
-        prevProps.content === nextProps.content &&
-        prevProps.saveContent === nextProps.saveContent
-    );
     return (
       prevProps.suggestions === nextProps.suggestions &&
       prevProps.currentVersionIndex === nextProps.currentVersionIndex &&

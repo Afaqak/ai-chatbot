@@ -113,6 +113,7 @@ export function Block({
       dedupingInterval: 5000,
     }
   );
+
   const [mode, setMode] = useState<"edit" | "diff">("edit");
   const [document, setDocument] = useState<Document | null>(null);
   const [isLatest, setIsLatest] = useState(true);
@@ -242,6 +243,7 @@ export function Block({
 
     setIsContentDirty(false);
   };
+
   function getDocumentContentById(index: number) {
     if (!documents) return "";
     if (!documents[index]) return "";

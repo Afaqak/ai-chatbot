@@ -50,7 +50,7 @@ export function ChatSidebar({ user }: { user: User | undefined }) {
                 className="p-2 h-fit"
                 onClick={() => {
                   setOpenMobile(false);
-                  router.push("/");
+                  router.push("/chat");
                   router.refresh();
                 }}
               >
