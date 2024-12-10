@@ -8,12 +8,11 @@ import type { Dispatch, SetStateAction } from "react";
 import type { Vote } from "@/lib/db/schema";
 
 import type { UIBlock } from "./block";
-import { DocumentToolCall, DocumentToolResult } from "./document";
 import { SparklesIcon } from "./icons";
 import { Markdown } from "./markdown";
 import { MessageActions } from "./message-actions";
 import { PreviewAttachment } from "./preview-attachment";
-import { Weather } from "./weather";
+
 
 export const PreviewMessage = ({
   chatId,
@@ -30,6 +29,10 @@ export const PreviewMessage = ({
   vote: Vote | undefined;
   isLoading: boolean;
 }) => {
+  // Extract metadata safely
+  const judgment = message?.metadata?.judgment;
+  const sources = message?.metadata?.sources;
+
   return (
     <motion.div
       className="w-full mx-auto max-w-3xl px-4 group/message"
@@ -47,87 +50,77 @@ export const PreviewMessage = ({
             <SparklesIcon size={14} />
           </div>
         )}
-
+        
         <div className="flex flex-col gap-2 w-full">
-          {message.content && (
+          {/* Content Rendering */}
+          {message.content && !message?.document_id ? (
             <div className="flex flex-col gap-4">
               <Markdown>{message.content as string}</Markdown>
             </div>
+          ) : (
+            message?.content &&
+            message?.document_id && (
+              <div
+                onClick={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  const boundingBox = {
+                    top: rect.top,
+                    left: rect.left,
+                    width: rect.width,
+                    height: rect.height,
+                  };
+                  setBlock({
+                    documentId: message.document_id,
+                    content: message?.content,
+                    title: message?.documents?.title,
+                    isVisible: true,
+                    status: "idle",
+                    boundingBox,
+                  });
+                }}
+                className="bg-gray-100 cursor-pointer rounded-md shadow p-2 w-fit"
+              >
+                <div>{message?.content}</div>
+              </div>
+            )
           )}
 
-          {message.toolInvocations && message.toolInvocations.length > 0 && (
-            <div className="flex flex-col gap-4">
-              {message.toolInvocations.map((toolInvocation) => {
-                const { toolName, toolCallId, state, args } = toolInvocation;
-
-                if (state === "result") {
-                  const { result } = toolInvocation;
-
-                  return (
-                    <div key={toolCallId}>
-                      {toolName === "getWeather" ? (
-                        <Weather weatherAtLocation={result} />
-                      ) : toolName === "createDocument" ? (
-                        <DocumentToolResult
-                          type="create"
-                          result={result}
-                          block={block}
-                          setBlock={setBlock}
-                        />
-                      ) : toolName === "updateDocument" ? (
-                        <DocumentToolResult
-                          type="update"
-                          result={result}
-                          block={block}
-                          setBlock={setBlock}
-                        />
-                      ) : toolName === "requestSuggestions" ? (
-                        <DocumentToolResult
-                          type="request-suggestions"
-                          result={result}
-                          block={block}
-                          setBlock={setBlock}
-                        />
-                      ) : (
-                        <pre>{JSON.stringify(result, null, 2)}</pre>
-                      )}
-                    </div>
-                  );
-                }
-                return (
-                  <div
-                    key={toolCallId}
-                    className={cx({
-                      skeleton: ["getWeather"].includes(toolName),
-                    })}
-                  >
-                    {toolName === "getWeather" ? (
-                      <Weather />
-                    ) : toolName === "createDocument" ? (
-                      <DocumentToolCall
-                        type="create"
-                        args={args}
-                        setBlock={setBlock}
-                      />
-                    ) : toolName === "updateDocument" ? (
-                      <DocumentToolCall
-                        type="update"
-                        args={args}
-                        setBlock={setBlock}
-                      />
-                    ) : toolName === "requestSuggestions" ? (
-                      <DocumentToolCall
-                        type="request-suggestions"
-                        args={args}
-                        setBlock={setBlock}
-                      />
-                    ) : null}
-                  </div>
-                );
-              })}
+          {/* Metadata Rendering */}
+          {judgment && (
+            <div 
+              className={`
+                flex flex-col gap-2 p-2 rounded-md 
+                ${judgment.isPositive 
+                  ? 'bg-green-50 text-green-800' 
+                  : 'bg-red-50 text-red-800'}
+              `}
+            >
+              <span className="font-semibold flex">
+                {judgment.isPositive ? '✓' : '!'} Judgment:
+              </span>
+              <span>{judgment.text}</span>
             </div>
           )}
 
+          {/* Sources Rendering */}
+          {sources && sources.length > 0 && (
+            <div className="bg-gray-50 p-2 rounded-md">
+              <h4 className="font-semibold mb-2 text-gray-700">Sources:</h4>
+              <ul className="space-y-1">
+                {sources.map((source, index) => (
+                  <li 
+                    key={index} 
+                    className="text-sm text-blue-600 hover:underline cursor-pointer"
+                    onClick={() => source.url && window.open(source.url, '_blank')}
+                  >
+                    {source.title}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Attachments */}
           {message.experimental_attachments && (
             <div className="flex flex-row gap-2">
               {message.experimental_attachments.map((attachment) => (
@@ -139,19 +132,21 @@ export const PreviewMessage = ({
             </div>
           )}
 
-          <MessageActions
-            key={`action-${message.id}`}
-            chatId={chatId}
-            message={message}
-            vote={vote}
-            isLoading={isLoading}
-          />
+          {/* Message Actions */}
+          {!message?.document_id && (
+            <MessageActions
+              key={`action-${message.id}`}
+              chatId={chatId}
+              message={message}
+              vote={vote}
+              isLoading={isLoading}
+            />
+          )}
         </div>
       </div>
     </motion.div>
   );
 };
-
 export const ThinkingMessage = () => {
   const role = "assistant";
 

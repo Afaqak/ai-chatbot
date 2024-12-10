@@ -19,14 +19,8 @@ export function ChatHeader({ selectedModelId }: { selectedModelId: string }) {
   const { width: windowWidth } = useWindowSize();
   const { setOpenMobile, open, toggleSidebar } = useSidebar();
   const { chat_sidebar_state } = useSidebarStore();
-  useEffect(() => {
-    if (!open && chat_sidebar_state) {
-      toggleSidebar();
-    } else if (open && !chat_sidebar_state) {
-      toggleSidebar();
-    }
-  }, [open, chat_sidebar_state]);
 
+  console.log(open,'OPEN')
 
   return (
     <header className="flex sticky top-0 bg-background py-1.5 items-center px-2 md:px-2 gap-2">

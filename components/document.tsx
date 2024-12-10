@@ -49,7 +49,7 @@ export function DocumentToolResult({
 
         setBlock({
           documentId: result.id,
-          content: "",
+          content: result?.content,
           title: result.title,
           isVisible: true,
           status: "idle",

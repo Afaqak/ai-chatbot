@@ -13,12 +13,14 @@ export default async function Layout({
   children: React.ReactNode;
 }) {
   const [session, cookieStore] = await Promise.all([auth(), cookies()]);
-  const isCollapsed = cookieStore.get("chat-sidebar:state")?.value !== "true";
+  const isCollapsed = cookieStore.get("sidebar:state")?.value !== "true";
 
   return (
-    <SidebarProvider  name="chat-sidebar" defaultOpen={!isCollapsed}>
+    <div className="inline-flex">
       <ChatSidebar user={session?.user} />
       <SidebarInset>{children}</SidebarInset>
-    </SidebarProvider>
+    </div>
+    // <SidebarProvider  defaultOpen={!isCollapsed}>
+    // </SidebarProvider>
   );
 }

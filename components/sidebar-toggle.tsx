@@ -5,7 +5,6 @@ import { BetterTooltip } from "@/components/ui/tooltip";
 
 import { SidebarLeftIcon } from "./icons";
 import { Button } from "./ui/button";
-import { useSidebarStore } from "@/features/main/hooks";
 
 export function SidebarToggle({
   className,
@@ -13,12 +12,12 @@ export function SidebarToggle({
 }: ComponentProps<typeof SidebarTrigger> & {
   align: "center" | "end" | "start" | undefined;
 }) {
-  const { toggle_chat_sidebar } = useSidebarStore();
+  const { toggleSidebar } = useSidebar();
 
   return (
     <BetterTooltip content="Toggle Sidebar" align={align}>
       <Button
-        onClick={toggle_chat_sidebar}
+        onClick={toggleSidebar}
         // variant="outline"
         className="md:px-2 md:h-fit"
       >

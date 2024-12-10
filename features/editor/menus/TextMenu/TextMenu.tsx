@@ -16,6 +16,7 @@ import { AIDropdown } from "./components/AIDropdown";
 import { EditLinkPopover } from "./components/EditLinkPopover";
 import { DataFieldPicker } from "../datafieldMenu";
 import useEditorStore from "@/hooks/use-editor-store";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 // We memorize the button so each button is not rerendered
 // on every editor state change
@@ -65,7 +66,9 @@ export const TextMenu = ({ editor }: TextMenuProps) => {
       updateDelay={100}
     >
       <Toolbar.Wrapper>
-        {/* <AIDropdown
+
+        <AIDropdown
+        editor={editor}
           onCompleteSentence={commands.onCompleteSentence}
           onEmojify={commands.onEmojify}
           onFixSpelling={commands.onFixSpelling}
@@ -75,18 +78,18 @@ export const TextMenu = ({ editor }: TextMenuProps) => {
           onTldr={commands.onTldr}
           onTone={commands.onTone}
           onTranslate={commands.onTranslate}
-        /> */}
-        {/* <Toolbar.Divider /> */}
+        /> 
+        <Toolbar.Divider />
         <MemoContentTypePicker options={blockOptions} />
         <MemoFontFamilyPicker
           onChange={commands.onSetFont}
           value={states.currentFont || ""}
         />
         <MemoDatafieldPicker editor={editor} />
-        {/* <MemoFontSizePicker
+       <MemoFontSizePicker
           onChange={commands.onSetFontSize}
           value={states.currentSize || ""}
-        /> */}
+        /> 
         <Toolbar.Divider />
         <MemoButton
           tooltip="Bold"

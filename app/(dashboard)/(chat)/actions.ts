@@ -13,7 +13,7 @@ export async function saveModelId(model: string) {
 export async function generateTitleFromUserMessage({
   message,
 }: {
-  message: CoreUserMessage;
+  message: string;
 }) {
   const { text: title } = await generateText({
     model: customModel('gpt-4o-mini'),

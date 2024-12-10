@@ -1,414 +1,325 @@
-import {
-  type Message,
-  StreamData,
-  convertToCoreMessages,
-  streamObject,
-  streamText,
-} from "ai";
-import { z } from "zod";
-
-import { auth } from "@/app/(auth)/auth";
-import { customModel } from "@/lib/ai";
-import { models } from "@/lib/ai/models";
-import { systemPrompt } from "@/lib/ai/prompts";
-import {
-  deleteChatById,
-  getChatById,
-  getDocumentById,
-  saveChat,
-  saveDocument,
-  saveMessages,
-  saveSuggestions,
-} from "@/lib/db/queries";
-import type { Suggestion } from "@/lib/db/schema";
-import {
-  generateUUID,
-  getMostRecentUserMessage,
-  sanitizeResponseMessages,
-} from "@/lib/utils";
-
-import { generateTitleFromUserMessage } from "../../actions";
+import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { v4 as uuidv4 } from "uuid";
+import { generateTitleFromUserMessage } from "../../actions";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export const maxDuration = 60;
+const genAI = new GoogleGenerativeAI(
+  process.env.NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_API_KEY!
+);
 
-type AllowedTools =
-  | "createDocument"
-  | "updateDocument"
-  | "requestSuggestions"
-  | "getWeather";
-
-const blocksTools: AllowedTools[] = [
-  "createDocument",
-  "updateDocument",
-  "requestSuggestions",
-];
-
-const weatherTools: AllowedTools[] = ["getWeather"];
-
-const allTools: AllowedTools[] = [...blocksTools, ...weatherTools];
-
-export async function POST(request: Request, res: Response) {
-  const {
-    id,
-    messages,
-    modelId,
-  }: { id: string; messages: Array<Message>; modelId: string } =
-    await request.json();
-  console.log('hit')
-  // const session = await auth();
-
-  // if (!session || !session.user || !session.user.id) {
-  //   return new Response("Unauthorized", { status: 401 });
-  // }
-
-  // const model = models.find((model) => model.id === modelId);
-
-  // if (!model) {
-  //   return new Response("Model not found", { status: 404 });
-  // }
-
-  // const coreMessages = convertToCoreMessages(messages);
-  // const userMessage = getMostRecentUserMessage(coreMessages);
-
-  // if (!userMessage) {
-  //   return new Response("No user message found", { status: 400 });
-  // }
-
-  // const chat = await getChatById({ id });
-
-  // if (!chat) {
-  //   const title = await generateTitleFromUserMessage({ message: userMessage });
-  //   await saveChat({ id, userId: session.user.id, title });
-  // }
-
-  // await saveMessages({
-  //   messages: [
-  //     { ...userMessage, id: generateUUID(), createdAt: new Date(), chatId: id },
-  //   ],
-  // });
-
-  // const getAiResponse = await fetch("http://localhost:50957/query", {
-  //   method: "POST",
-  //   body: JSON.stringify({
-  //     query: userMessage,
-  //   }),
-  // });
-
-  // const response = await getAiResponse.json();
-  const response={
-    data:"hello what are u doing im a streamed response"
+export const maxDuration = 300;
+export async function POST(request: Request) {
+  const supabase = await createClient();
+  const session = (await supabase.auth.getSession()).data.session;
+  if (!session?.user?.id) {
+    return new Response("Unauthorized", { status: 401 });
   }
-  let fullText = response.data;
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      const chunkSize = 10;
-      for (let i = 0; i < fullText.length; i += chunkSize) {
-        const chunk = fullText.slice(i, i + chunkSize);
-        controller.enqueue(encoder.encode(chunk));
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-      controller.close();
-    },
-  });
+  const userId = session?.user.id;
+  const { searchParams } = new URL(request.url);
+  let conversationId = searchParams.get("conversation_id");
+  try {
+    const { query } = await request.json();
 
-  return new NextResponse(stream);
+    if (!conversationId) {
+      const title = await generateTitleFromUserMessage({ message: query });
+      conversationId = uuidv4();
+
+      const { error: conversationError } = await supabase
+        .from("conversations")
+        .insert({
+          id: conversationId,
+          user_id: userId,
+          title,
+          parent_conversation_id: null,
+        });
+
+      if (conversationError) {
+        console.log(conversationError, "CON ERROR");
+        return new Response(
+          JSON.stringify({ error: "Conversation creation failed" }),
+          { status: 500 }
+        );
+      }
+    }
+
+    if (conversationId) {
+      console.log("CHECKING");
+      const title = await generateTitleFromUserMessage({ message: query });
+
+      const { data, error } = await supabase
+        .from("conversations")
+        .select()
+        .eq("id", conversationId);
+      if (error === null) {
+        console.log("hit");
+        const { error: conversationError } = await supabase
+          .from("conversations")
+          .insert({
+            id: conversationId,
+            user_id: userId,
+            title,
+            parent_conversation_id: null,
+          });
+      }
+    }
+
+    const userMessageId = uuidv4();
+    const { error: messageError } = await supabase.from("messages").insert({
+      id: userMessageId,
+      conversation_id: conversationId,
+      user_id: userId,
+      role: "user",
+      content: query,
+    });
+
+    if (messageError) {
+      console.log("messageErr", messageError);
+      return new Response(JSON.stringify({ error: "Message save failed" }), {
+        status: 500,
+      });
+    }
+
+    const documentGeneration = `
+   Provide a comprehensive response to the user query while adhering strictly to the following JSON format. Make sure to populate **ALL** fields, even if some values are minimal. Pay attention to the following important points:
+
+   ${query}
+
+1. **content**: This should be a detailed and well-structured response addressing the user query.
+   - If a document should be created, start the content with "CREATE_DOCUMENT:" followed by the document content (e.g., a letter or request).
+   - Use proper formatting for any document content that follows the "CREATE_DOCUMENT:" directive (e.g., clear headings, placeholders for variables like [Debtor's Name], etc.).
+
+2. **judgment**: Provide a brief assessment of the response quality, such as:
+   - "Comprehensive explanation with clear steps."
+   - "General answer with few details."
+   - "Incomplete answer with missing key information."
+
+3. **sources**: Include relevant sources (if any) to back up the content provided. If sources are not available, leave the array empty. Each source should have:
+   - A 'title': The title of the source (if available).
+   - A 'url': The URL of the source (if available; if not, leave as an empty string).
+   - Limit sources to 2-3 relevant references.
+
+4. **createDocument**: This should be a boolean ('true' or 'false'). Set to 'true' if a document should be created as part of the response, otherwise set it to 'false'.
+
+Here is the structure you should follow for the response:
+
+{
+  "content": "Provide a detailed response addressing the query. If a document should be created, include the text following 'CREATE_DOCUMENT:'",
+  "judgment": {
+    "text": "A concise assessment of the response quality (e.g., 'Comprehensive explanation with clear steps')"
+  },
+  "sources": [
+    {
+      "title": "Specific Source Name",
+      "url": "Optional source URL (can be empty string if no URL)"
+    }
+  ],
+  "createDocument": true or false
 }
 
-// const streamingData = new StreamData();
+Important Response Guidelines:
+- Ensure valid JSON syntax.
+- Include placeholders in the document content where appropriate (e.g., [Debtor's Name], [Loan Account Number], etc.).
+- Be consistent with how you structure each field.
+- If no document is required, omit the "CREATE_DOCUMENT:" section.
 
-// const result = await streamText({
-//   model: customModel(model.apiIdentifier),
-//   system: systemPrompt,
-//   messages: coreMessages,
-//   maxSteps: 5,
-//   experimental_activeTools: allTools,
-//   tools: {
-//     getWeather: {
-//       description: "Get the current weather at a location",
-//       parameters: z.object({
-//         latitude: z.number(),
-//         longitude: z.number(),
-//       }),
-//       execute: async ({ latitude, longitude }) => {
-//         const response = await fetch(
-//           `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m&hourly=temperature_2m&daily=sunrise,sunset&timezone=auto`
-//         );
+    `;
 
-//         const weatherData = await response.json();
-//         return weatherData;
-//       },
-//     },
-//     createDocument: {
-//       description: "Create a document for a writing activity",
-//       parameters: z.object({
-//         title: z.string(),
-//       }),
-//       execute: async ({ title }) => {
-//         const id = generateUUID();
-//         let draftText = "";
-//         streamingData.append({
-//           type: "id",
-//           content: id,
-//         });
+    // const aiResponse = await fetch("http://127.0.0.1:8000/query", {
+    //   method: "POST",
+    //   body: JSON.stringify({ query: documentGeneration }),
+    //   headers: { "Content-Type": "application/json" },
+    // });
 
-//         streamingData.append({
-//           type: "title",
-//           content: title,
-//         });
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-//         streamingData.append({
-//           type: "clear",
-//           content: "",
-//         });
+    const result = await model.generateContent(`${documentGeneration}`);
+    const response = result.response;
+    const aiData = response.text();
 
-//         const { fullStream } = await streamText({
-//           model: customModel(model.apiIdentifier),
-//           system:
-//             "Write about the given topic. Markdown is supported. Use headings wherever appropriate.",
-//           prompt: title,
-//         });
-//         console.log(fullStream, "[FULL STREAM]");
-//         for await (const delta of fullStream) {
-//           const { type } = delta;
+    console.log(aiData, "AI DATA");
 
-//           if (type === "text-delta") {
-//             const { textDelta } = delta;
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(aiData);
+    } catch (parseError) {
+      console.error("Failed to parse AI response", parseError);
+      return new Response(
+        JSON.stringify({ error: "Invalid AI response format" }),
+        {
+          status: 500,
+        }
+      );
+    }
 
-//             draftText += textDelta;
-//             streamingData.append({
-//               type: "text-delta",
-//               content: textDelta,
-//             });
-//           }
-//         }
+    if (parsedResponse.content.includes("CREATE_DOCUMENT")) {
+      const documentContent = parsedResponse.content
+        .replace("CREATE_DOCUMENT", "")
+        .trim();
+      const documentId = uuidv4();
+      const documentTitle = await generateTitleFromUserMessage({
+        message: documentContent,
+      });
 
-//         streamingData.append({ type: "finish", content: "" });
+      const { error: docError } = await supabase.from("documents").insert({
+        id: documentId,
+        user_id: userId,
+        conversation_id: conversationId,
+        title: documentTitle || "Untitled Document",
+        content: "",
+      });
 
-//         if (session.user?.id) {
-//           let document = await saveDocument({
-//             id,
-//             title,
-//             content: draftText,
-//             userId: session.user.id,
-//           });
+      if (docError) {
+        console.log(docError, "DOC ERROR");
+        return new Response(
+          JSON.stringify({ error: "Document creation failed" }),
+          { status: 500 }
+        );
+      }
 
-//         }
+      const initialMessageId = uuidv4();
+      const { error: initialMessageError } = await supabase
+        .from("messages")
+        .insert({
+          id: initialMessageId,
+          conversation_id: conversationId,
+          user_id: userId,
+          role: "assistant",
+          content: `Document ${documentTitle} creating...`,
+          document_id: documentId,
+          metadata: {
+            judgment: parsedResponse.judgment,
+            sources: parsedResponse.sources,
+          },
+        });
 
-//         return {
-//           id,
-//           title,
-//           content: "A document was created and is now visible to the user.",
-//         };
-//       },
-//     },
-//     updateDocument: {
-//       description: "Update a document with the given description",
-//       parameters: z.object({
-//         id: z.string().describe("The ID of the document to update"),
-//         description: z
-//           .string()
-//           .describe("The description of changes that need to be made"),
-//       }),
-//       execute: async ({ id, description }) => {
-//         const document = await getDocumentById({ id });
+      if (initialMessageError) {
+        return new Response(
+          JSON.stringify({ error: "Initial message save failed" }),
+          { status: 500 }
+        );
+      }
 
-//         if (!document) {
-//           return {
-//             error: "Document not found",
-//           };
-//         }
+      const CHUNK_SIZE = 120;
+      const contentChunks = [];
+      for (let i = 0; i < documentContent.length; i += CHUNK_SIZE) {
+        contentChunks.push(documentContent.slice(i, i + CHUNK_SIZE));
+      }
 
-//         const { content: currentContent } = document;
-//         let draftText = "";
+      let processedContent = "";
 
-//         streamingData.append({
-//           type: "clear",
-//           content: document.title,
-//         });
+      for (const chunk of contentChunks) {
+        processedContent += chunk;
 
-//         const { fullStream } = await streamText({
-//           model: customModel(model.apiIdentifier),
-//           system:
-//             "You are a helpful writing assistant. Based on the description, please update the piece of writing.",
-//           experimental_providerMetadata: {
-//             openai: {
-//               prediction: {
-//                 type: "content",
-//                 content: currentContent,
-//               },
-//             },
-//           },
-//           messages: [
-//             {
-//               role: "user",
-//               content: description,
-//             },
-//             { role: "user", content: currentContent },
-//           ],
-//         });
+        await supabase
+          .from("documents")
+          .update({ content: processedContent.trim() })
+          .eq("id", documentId);
+      }
 
-//         for await (const delta of fullStream) {
-//           const { type } = delta;
+      const finalMessageId = uuidv4();
+      const { error: finalMessageError } = await supabase
+        .from("messages")
+        .insert({
+          id: finalMessageId,
+          conversation_id: conversationId,
+          user_id: userId,
+          role: "assistant",
+          content: `Document created on ${documentTitle}`,
+        });
 
-//           if (type === "text-delta") {
-//             const { textDelta } = delta;
+      if (finalMessageError) {
+        return new Response(
+          JSON.stringify({ error: "Final message save failed" }),
+          { status: 500 }
+        );
+      }
+    } else {
+      // Handle regular message insertion
+      let processedContent = "";
+      const CHUNK_SIZE = 120;
+      const contentChunks = [];
+      const finalMessageId = uuidv4();
 
-//             draftText += textDelta;
-//             streamingData.append({
-//               type: "text-delta",
-//               content: textDelta,
-//             });
-//           }
-//         }
+      for (let i = 0; i < parsedResponse.content.length; i += CHUNK_SIZE) {
+        contentChunks.push(parsedResponse.content.slice(i, i + CHUNK_SIZE));
+      }
 
-//         streamingData.append({ type: "finish", content: "" });
+      const { error: insertError } = await supabase.from("messages").insert({
+        id: finalMessageId,
+        conversation_id: conversationId,
+        user_id: userId,
+        role: "assistant",
+        content: contentChunks[0],
+        metadata: {
+          judgment: parsedResponse.judgment,
+          sources: parsedResponse.sources,
+          isComplete: false,
+        },
+      });
 
-//         if (session.user?.id) {
-//           await saveDocument({
-//             id,
-//             title: document.title,
-//             content: draftText,
-//             userId: session.user.id,
-//           });
-//         }
+      if (insertError) {
+        console.error("Error inserting initial message:", insertError);
+        return new Response(
+          JSON.stringify({ error: "Message insert failed" }),
+          {
+            status: 500,
+          }
+        );
+      }
 
-//         return {
-//           id,
-//           title: document.title,
-//           content: "The document has been updated successfully.",
-//         };
-//       },
-//     },
-//     requestSuggestions: {
-//       description: "Request suggestions for a document",
-//       parameters: z.object({
-//         documentId: z
-//           .string()
-//           .describe("The ID of the document to request edits"),
-//       }),
-//       execute: async ({ documentId }) => {
-//         const document = await getDocumentById({ id: documentId });
+      for (const chunk of contentChunks) {
+        processedContent += chunk;
+        const { error: updateError } = await supabase
+          .from("messages")
+          .update({
+            content: processedContent,
+          })
+          .eq("id", finalMessageId);
 
-//         if (!document || !document.content) {
-//           return {
-//             error: "Document not found",
-//           };
-//         }
+        if (updateError) {
+          console.error(`Error updating message chunk: ${chunk}`, updateError);
+        }
 
-//         const suggestions: Array<
-//           Omit<Suggestion, "userId" | "createdAt" | "documentCreatedAt">
-//         > = [];
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
 
-//         const { elementStream } = await streamObject({
-//           model: customModel(model.apiIdentifier),
-//           system:
-//             "You are a help writing assistant. Given a piece of writing, please offer suggestions to improve the piece of writing and describe the change. It is very important for the edits to contain full sentences instead of just words. Max 5 suggestions.",
-//           prompt: document.content,
-//           output: "array",
-//           schema: z.object({
-//             originalSentence: z.string().describe("The original sentence"),
-//             suggestedSentence: z.string().describe("The suggested sentence"),
-//             description: z
-//               .string()
-//               .describe("The description of the suggestion"),
-//           }),
-//         });
+      console.log(parsedResponse.metadata, "META");
+    }
 
-//         for await (const element of elementStream) {
-//           const suggestion = {
-//             originalText: element.originalSentence,
-//             suggestedText: element.suggestedSentence,
-//             description: element.description,
-//             id: generateUUID(),
-//             documentId: documentId,
-//             isResolved: false,
-//           };
-
-//           streamingData.append({
-//             type: "suggestion",
-//             content: suggestion,
-//           });
-
-//           suggestions.push(suggestion);
-//         }
-
-//         if (session.user?.id) {
-//           const userId = session.user.id;
-
-//           await saveSuggestions({
-//             suggestions: suggestions.map((suggestion) => ({
-//               ...suggestion,
-//               userId,
-//               createdAt: new Date(),
-//               documentCreatedAt: document.createdAt,
-//             })),
-//           });
-//         }
-
-//         return {
-//           id: documentId,
-//           title: document.title,
-//           message: "Suggestions have been added to the document",
-//         };
-//       },
-//     },
-//   },
-//   onFinish: async ({ responseMessages }) => {
-
-//     console.log(
-//       responseMessages?.map((content) => {
-//       })
-//     );
-//     if (session.user?.id) {
-//       try {
-//         const responseMessagesWithoutIncompleteToolCalls =
-//           sanitizeResponseMessages(responseMessages);
-
-//         console.log(responseMessagesWithoutIncompleteToolCalls, [
-//           "responseMessagesWithoutIncompleteToolCalls",
-//         ]);
-
-//         const savedMessages = await saveMessages({
-//           messages: responseMessagesWithoutIncompleteToolCalls.map(
-//             (message) => {
-//               const messageId = generateUUID();
-
-//               if (message.role === "assistant") {
-//                 streamingData.appendMessageAnnotation({
-//                   messageIdFromServer: messageId,
-//                 });
-//               }
-
-//               return {
-//                 id: messageId,
-//                 chatId: id,
-//                 role: message.role,
-//                 content: message.content,
-//                 createdAt: new Date(),
-//               };
-//             }
-//           ),
-//         });
-
-//         console.log(savedMessages, "SAVED MESSAGES");
-//       } catch (error) {
-//         console.error("Failed to save chat");
-//       }
-//     }
-
-//     streamingData.close();
-//   },
-//   experimental_telemetry: {
-//     isEnabled: true,
-//     functionId: "stream-text",
-//   },
-// });
-
-// return result.toDataStreamResponse({
-//   data: streamingData,
-// });
+    return new Response(
+      JSON.stringify({
+        conversationId,
+        message: "Request processed successfully",
+        responseMetadata: {
+          judgment: parsedResponse.judgment,
+          sources: parsedResponse.sources,
+        },
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  } catch (error) {
+    if (conversationId) {
+      await supabase.from("messages").insert({
+        id: uuidv4(),
+        conversation_id: conversationId,
+        user_id: userId,
+        role: "assistant",
+        content: `Unexpected error occurred, please try again after some time.`,
+        metadata: {
+          error: "Unexpected Error",
+        },
+      });
+    }
+    console.error("Unexpected error:", error);
+    return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+      status: 500,
+    });
+  }
+}
 
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -417,26 +328,104 @@ export async function DELETE(request: Request) {
   if (!id) {
     return new Response("Not Found", { status: 404 });
   }
-
-  const session = await auth();
-
-  if (!session || !session.user) {
+  const supabase = await createClient();
+  const session = (await supabase.auth.getSession()).data.session;
+  if (!session?.user?.id) {
     return new Response("Unauthorized", { status: 401 });
   }
 
   try {
-    const chat = await getChatById({ id });
+    const { error } = await supabase
+      .from("conversation")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", session.user.id);
 
-    if (chat.userId !== session.user.id) {
-      return new Response("Unauthorized", { status: 401 });
+    if (error) {
+      throw error;
     }
 
-    await deleteChatById({ id });
-
-    return new Response("Chat deleted", { status: 200 });
+    return new Response("Conversation deleted", { status: 200 });
   } catch (error) {
-    return new Response("An error occurred while processing your request", {
-      status: 500,
+    console.error("Error deleting conversation:", error);
+    return new Response("Error deleting conversation", { status: 500 });
+  }
+}
+
+export async function GET(request: Request) {
+  const supabase = await createClient();
+  const session = (await supabase.auth.getSession()).data.session;
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const conversationId = searchParams.get("conversation_id");
+
+    if (!conversationId) {
+      const { data: conversations, error: conversationsError } = await supabase
+        .from("conversation")
+        .select(
+          `
+          *,
+          messages:message(*)
+        `
+        )
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false });
+
+      if (conversationsError) {
+        throw conversationsError;
+      }
+
+      return NextResponse.json({ conversations });
+    }
+
+    const { data: conversation, error: conversationError } = await supabase
+      .from("conversation")
+      .select(
+        `
+        *,
+        messages:message(*)
+      `
+      )
+      .eq("id", conversationId)
+      .eq("user_id", session.user.id)
+      .single();
+
+    if (conversationError) {
+      if (conversationError.code === "PGRST116") {
+        return NextResponse.json(
+          { error: "Conversation not found" },
+          { status: 404 }
+        );
+      }
+      throw conversationError;
+    }
+
+    // Format messages for the client
+    const formattedMessages = conversation.messages.map((message: any) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.created_at,
+    }));
+
+    return NextResponse.json({
+      conversation: {
+        id: conversation.id,
+        title: conversation.title,
+        createdAt: conversation.created_at,
+        messages: formattedMessages,
+      },
     });
+  } catch (error) {
+    console.error("Error fetching messages:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

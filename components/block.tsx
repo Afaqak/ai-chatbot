@@ -98,9 +98,7 @@ export function Block({
     isLoading: isDocumentsFetching,
     mutate: mutateDocuments,
   } = useSWR<Array<Document>>(
-    block && block.status !== "streaming"
-      ? `/api/document?id=${block.documentId}`
-      : null,
+    `/api/document?id=${block.documentId}&conversationId=${chatId}`,
     fetcher
   );
 
@@ -128,6 +126,8 @@ export function Block({
   const [_, copyToClipboard] = useCopyToClipboard();
   const canSaveRef = useRef(true);
 
+  console.log(documents, "DOCS");
+
   useEffect(() => {
     if (documents) {
       const isCurrentLatest = currentVersionIndex === documents.length - 1;
@@ -141,7 +141,7 @@ export function Block({
         if (mostRecentDocument) {
           setDocument(mostRecentDocument);
           setCurrentVersionIndex(documents.length - 1);
-          console.log("recent");
+
           setBlock((currentBlock) => ({
             ...currentBlock,
             content: mostRecentDocument.content ?? "",
@@ -153,53 +153,90 @@ export function Block({
 
   const handleContentChange = useCallback(
     async (updatedContent: string) => {
-      if (!block || !canSaveRef.current) return;
-
+      // Add more logging to diagnose the issue
+      console.log('Block:', block);
+      console.log('Current Documents:', documents);
+      console.log('Can Save Ref:', canSaveRef.current);
+  
+      // Early return checks
+      if (!block) {
+        console.error('No block available');
+        return;
+      }
+      if (!canSaveRef.current) {
+        console.error('Cannot save - not latest version');
+        return;
+      }
+  
       await mutate<Array<Document>>(
-        `/api/document?id=${block.documentId}`,
+        `/api/document?id=${block.documentId}&conversationId=${chatId}`,
         async (currentDocuments) => {
-          if (!currentDocuments) return undefined;
-
-          const currentDocument = currentDocuments.at(-1);
-          if (!currentDocument) return currentDocuments;
-
+          // More detailed logging
+          console.log('Current Documents in Mutate:', currentDocuments);
+          
+          if (!currentDocuments) {
+            console.error('No current documents found');
+            return undefined;
+          }
+  
+          // Robust document retrieval
+          const currentDocument = currentDocuments[currentDocuments.length - 1];
+          
+          if (!currentDocument) {
+            console.error('No current document found in the array');
+            return currentDocuments;
+          }
+  
+          // Check if content actually changed
           if (currentDocument.content !== updatedContent) {
             try {
-              setIsContentDirty(true); 
-
-              await fetch(`/api/document?id=${block.documentId}`, {
+              setIsContentDirty(true);
+              
+              const response = await fetch(`/api/document`, {
                 method: "POST",
+                headers: {
+                  'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({
                   title: block.title,
+                  documentId: block.documentId,
+                  conversationId: chatId,
                   content: updatedContent,
                 }),
               });
-
+  
+              // Optional: Add error handling for the fetch
+              if (!response.ok) {
+                console.error('Failed to save document', await response.text());
+                throw new Error('Document save failed');
+              }
+  
               const newDocument = {
                 ...currentDocument,
                 content: updatedContent,
-                createdAt: new Date(),
+                created_at: new Date(),
               };
-
+  
               return [...currentDocuments, newDocument];
+            } catch (error) {
+              console.error('Error in handleContentChange:', error);
+              return currentDocuments;
             } finally {
               setIsContentDirty(false);
             }
           }
-
+  
           return currentDocuments;
         },
         { revalidate: false }
       );
     },
-    [block, mutate]
+    [block, mutate, chatId]  // Added chatId to dependency array
   );
-
   const debouncedHandleContentChange = useDebounceCallback(
     handleContentChange,
     2000
   );
-
 
   const saveContent = useCallback(
     (updatedContent: string, debounce: boolean) => {
@@ -243,7 +280,6 @@ export function Block({
 
     setIsContentDirty(false);
   };
-
   function getDocumentContentById(index: number) {
     if (!documents) return "";
     if (!documents[index]) return "";
@@ -434,7 +470,7 @@ export function Block({
               ) : document ? (
                 <div className="text-sm text-muted-foreground">
                   {`Updated ${formatDistance(
-                    new Date(document.createdAt),
+                    new Date(document.created_at),
                     new Date(),
                     {
                       addSuffix: true,
@@ -579,3 +615,4 @@ export function Block({
     </motion.div>
   );
 }
+

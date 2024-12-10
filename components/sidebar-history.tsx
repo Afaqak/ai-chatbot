@@ -33,10 +33,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-
 } from "@/components/ui/sidebar";
 import type { Chat } from "@/lib/db/schema";
 import { fetcher } from "@/lib/utils";
+import { Copy } from "lucide-react";
+
+import { createClient } from "@supabase/supabase-js";
 
 type GroupedChats = {
   today: Chat[];
@@ -45,6 +47,11 @@ type GroupedChats = {
   lastMonth: Chat[];
   older: Chat[];
 };
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 const ChatItem = ({
   chat,
@@ -56,57 +63,91 @@ const ChatItem = ({
   isActive: boolean;
   onDelete: (chatId: string) => void;
   setOpenMobile: (open: boolean) => void;
-}) => (
-  <SidebarMenuItem>
-    <SidebarMenuButton asChild isActive={isActive}>
-      <Link href={`/chat/${chat.id}`} onClick={() => setOpenMobile(false)}>
-        <span>{chat.title}</span>
-      </Link>
-    </SidebarMenuButton>
-    <DropdownMenu modal={true}>
-      <DropdownMenuTrigger asChild>
-        <SidebarMenuAction
-          className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground mr-0.5"
-          showOnHover={!isActive}
-        >
-          <MoreHorizontalIcon />
-          <span className="sr-only">More</span>
-        </SidebarMenuAction>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="bottom" align="end">
-        <DropdownMenuItem
-          className="cursor-pointer text-destructive focus:bg-destructive/15 focus:text-destructive dark:text-red-500"
-          onSelect={() => onDelete(chat.id)}
-        >
-          <TrashIcon />
-          <span>Delete</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  </SidebarMenuItem>
-);
+}) => {
+  const router = useRouter();
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={isActive}>
+        <Link href={`/chat/${chat.id}`} onClick={() => setOpenMobile(false)}>
+          <span>{chat.title}</span>
+        </Link>
+      </SidebarMenuButton>
+      <DropdownMenu modal={true}>
+        <DropdownMenuTrigger asChild>
+          <SidebarMenuAction
+            className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground mr-0.5"
+            showOnHover={!isActive}
+          >
+            <MoreHorizontalIcon />
+            <span className="sr-only">More</span>
+          </SidebarMenuAction>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="bottom" align="end">
+          <DropdownMenuItem
+            className="cursor-pointer text-destructive focus:bg-destructive/15 focus:text-destructive dark:text-red-500"
+            onSelect={() => onDelete(chat.id)}
+          >
+            <TrashIcon />
+            <span>Delete</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer"
+            onSelect={() => router.push(`/chat?parent_id=${chat?.id}`)}
+          >
+            <Copy />
+            <span>add</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarMenuItem>
+  );
+};
 
 export function SidebarHistory({ user }: { user: User | undefined }) {
-
   const { setOpenMobile } = useSidebar();
   const { id } = useParams();
   const pathname = usePathname();
   const {
-    data: history,
+    data: { conversations: history },
     isLoading,
     mutate,
-  } = useSWR<Array<Chat>>(user ? "/api/history" : null, fetcher, {
+  } = useSWR<Array<Chat>>("/api/conversation", fetcher, {
     fallbackData: [],
   });
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
+  // useEffect(() => {
+  //   mutate();
+  // }, [pathname, mutate]);
+
   useEffect(() => {
-    mutate();
-  }, [pathname, mutate]);
+    if (!id) return;
+
+    const messagesChannel = supabase
+      .channel(`conversation:${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "conversations",
+          filter: `conversation_id=eq.${id}`,
+        },
+        async (payload) => {
+          console.log("Change detected:", payload);
+          mutate();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(messagesChannel);
+    };
+  }, [id, mutate]);
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const router = useRouter();
+
   const handleDelete = async () => {
     const deletePromise = fetch(`/api/chat?id=${deleteId}`, {
       method: "DELETE",
@@ -132,17 +173,17 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
     }
   };
 
-  if (!user) {
-    return (
-      <SidebarGroup>
-        <SidebarGroupContent>
-          <div className="text-zinc-500 w-full flex flex-row justify-center items-center text-sm gap-2">
-            <div>Login to save and revisit previous chats!</div>
-          </div>
-        </SidebarGroupContent>
-      </SidebarGroup>
-    );
-  }
+  // if (!user) {
+  //   return (
+  //     <SidebarGroup>
+  //       <SidebarGroupContent>
+  //         <div className="text-zinc-500 w-full flex flex-row justify-center items-center text-sm gap-2">
+  //           <div>Login to save and revisit previous chats!</div>
+  //         </div>
+  //       </SidebarGroupContent>
+  //     </SidebarGroup>
+  //   );
+  // }
 
   if (isLoading) {
     return (
@@ -313,7 +354,7 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
 
                     {groupedChats.older.length > 0 && (
                       <>
-                        <div className="px-2 py-1 text-xs text-sidebar-foreground/50 mt-6">
+                        <div className="text-xs text-sidebar-foreground/50 ">
                           Older
                         </div>
                         {groupedChats.older.map((chat) => (
