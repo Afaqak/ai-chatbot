@@ -9,7 +9,7 @@ const genAI = new GoogleGenerativeAI(
 	process.env.NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_API_KEY!,
 );
 
-export const maxDuration = 300;
+export const maxDuration = 25;
 
 const getDoumentGenerationPrompt = (query: string) => `
  Provide a comprehensive response to the user query while adhering strictly to the following JSON format. Make sure to populate **ALL** fields, even if some values are minimal. Pay attention to the following important points:
